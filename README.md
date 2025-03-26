@@ -39,10 +39,7 @@ pip install python-docx
 - Works best with structured financial data.
 - Can be extended with additional rule sets for compliance.
 
-## Next Steps
-- **Improve rule generation** with larger models.
-- **Enhance anomaly detection** using ensemble methods.
-- **Expand validation rules** for industry-specific compliance.
+
 
 
 

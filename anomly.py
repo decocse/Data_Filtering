@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from sklearn.ensemble import IsolationForest
+from docx import Document
 
 # Load a small open-source LLM
 MODEL_NAME = "google/flan-t5-small"
@@ -26,11 +27,15 @@ def load_data(file_path):
         return None
 
 def generate_rules():
-    """Use LLM to generate validation rules."""
-    prompt = "Generate validation rules for a financial dataset with columns: Company_ID, Total_Assets, Liabilities, Net_Profit, Regulatory_Compliance."
+    """Use LLM to generate structured validation rules."""
+    prompt = """Generate financial validation rules in JSON format:
+    - Total_Assets and Liabilities must be positive numbers.
+    - Net_Profit can be negative but should not exceed -1M.
+    - Regulatory_Compliance must be 'Compliant' or 'Non-Compliant'.
+    Return structured rules only."""
 
     # Tokenize input
-    inputs = tokenizer(prompt, return_tensors="pt").input_ids.to("cpu")  # Use CPU
+    inputs = tokenizer(prompt, return_tensors="pt").input_ids.to("cpu")
 
     # Generate text
     with torch.no_grad():
@@ -71,7 +76,8 @@ def detect_anomalies(df):
     if len(numeric_cols) == 0:
         return ["No numeric columns found for anomaly detection."]
 
-    model = IsolationForest(contamination=0.05, random_state=42)
+    contamination_rate = min(0.1, 5 / len(df))  # Adjust dynamically based on dataset size
+    model = IsolationForest(contamination=contamination_rate, random_state=42)
     df["Anomaly"] = model.fit_predict(df[numeric_cols])
 
     anomaly_rows = df[df["Anomaly"] == -1]
@@ -80,23 +86,26 @@ def detect_anomalies(df):
 
     return anomalies
 
-def generate_report(errors, anomalies, rules, report_path="validation_report.txt"):
-    """Generate and save a detailed validation report."""
-    with open(report_path, "w") as report_file:
-        report_file.write("Generated Validation Rules:\n")
-        report_file.write(rules + "\n\n")
+def generate_report(errors, anomalies, rules, report_path="validation_report.docx"):
+    """Generate and save a detailed validation report in Word format."""
+    doc = Document()
+    doc.add_heading("Validation Report", level=1)
 
-        if errors:
-            report_file.write("Basic Validation Errors:\n")
-            report_file.write("\n".join(errors))
-            report_file.write("\n\n")
+    doc.add_heading("Generated Validation Rules", level=2)
+    doc.add_paragraph(rules)
 
-        if anomalies:
-            report_file.write("AI-Driven Anomaly Detection:\n")
-            report_file.write("\n".join(anomalies))
-        else:
-            report_file.write("No anomalies detected.")
+    doc.add_heading("Basic Validation Errors", level=2)
+    for error in errors:
+        doc.add_paragraph(f"- {error}")
 
+    doc.add_heading("AI-Driven Anomaly Detection", level=2)
+    if anomalies:
+        for anomaly in anomalies:
+            doc.add_paragraph(f"- {anomaly}")
+    else:
+        doc.add_paragraph("No anomalies detected.")
+
+    doc.save(report_path)
     print(f"Validation report saved to {report_path}")
 
 if __name__ == "__main__":
